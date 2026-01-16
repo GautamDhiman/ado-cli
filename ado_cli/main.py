@@ -160,13 +160,36 @@ def item_create(
     description: Annotated[Optional[str], typer.Option("--desc", "-d")] = None,
     state: Annotated[Optional[str], typer.Option("--state", "-s")] = None,
     remaining: Annotated[Optional[float], typer.Option("--remaining", "-r")] = None,
+    estimate: Annotated[Optional[float], typer.Option("--estimate", "-e")] = None,
+    completed: Annotated[Optional[float], typer.Option("--completed", "-c")] = None,
+    points: Annotated[Optional[float], typer.Option("--points", "-p")] = None,
+    target_date: Annotated[Optional[str], typer.Option("--target-date")] = None,
+    labels: Annotated[Optional[str], typer.Option("--labels")] = None,
+    pii_impact: Annotated[Optional[str], typer.Option("--pii-impact")] = None,
+    load_testing: Annotated[Optional[str], typer.Option("--load-testing")] = None,
+    sprint_committed: Annotated[Optional[str], typer.Option("--sprint-committed")] = None,
+    iteration: Annotated[Optional[str], typer.Option("--iteration")] = None,
+    area: Annotated[Optional[str], typer.Option("--area")] = None,
 ):
     """Create a new work item."""
     try:
         with get_client() as client:
             item = client.create_work_item(
-                work_item_type=work_type, title=title,
-                description=description, state=state, remaining_work=remaining,
+                work_item_type=work_type,
+                title=title,
+                description=description,
+                state=state,
+                remaining_work=remaining,
+                original_estimate=estimate,
+                completed_work=completed,
+                story_points=points,
+                target_date=target_date,
+                labels=labels,
+                pii_impact=pii_impact,
+                load_testing=load_testing,
+                sprint_committed=sprint_committed,
+                iteration_path=iteration,
+                area_path=area,
             )
             cfg = get_config()
             console.print(f"[green]✓ Created {item.work_item_type} #{item.id}:[/green] {item.title}")

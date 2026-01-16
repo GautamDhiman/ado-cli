@@ -7,6 +7,7 @@ from typing import Any, Callable, TypeVar
 from urllib.parse import quote
 
 import httpx
+import markdown
 
 from ado_cli.config import AdoConfig
 from ado_cli.exceptions import ApiError, AuthenticationError, WorkItemNotFoundError
@@ -17,6 +18,15 @@ T = TypeVar("T")
 MAX_RETRIES = 3
 RETRY_DELAY = 1.0
 RETRYABLE_EXCEPTIONS = (httpx.ConnectError, httpx.ReadError, ConnectionResetError, OSError)
+
+MD_CONVERTER = markdown.Markdown(extensions=["nl2br", "fenced_code", "tables"])
+
+
+def md_to_html(text: str | None) -> str | None:
+    if not text:
+        return text
+    MD_CONVERTER.reset()
+    return MD_CONVERTER.convert(text)
 
 
 def with_retry(func: Callable[..., T]) -> Callable[..., T]:
@@ -100,6 +110,8 @@ class AzureDevOpsClient:
 
     @with_retry
     def create_work_item(self, work_item_type: str, title: str, **fields: Any) -> WorkItem:
+        if "description" in fields and fields["description"]:
+            fields["description"] = md_to_html(fields["description"])
         operations = [PatchOperation.for_field("System.Title", title)]
         for field_name, value in fields.items():
             if value is not None:
@@ -115,6 +127,8 @@ class AzureDevOpsClient:
 
     @with_retry
     def update_work_item(self, work_item_id: int, **fields: Any) -> WorkItem:
+        if "description" in fields and fields["description"]:
+            fields["description"] = md_to_html(fields["description"])
         operations = [
             PatchOperation.for_field(get_field_name(k), v)
             for k, v in fields.items() if v is not None

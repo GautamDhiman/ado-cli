@@ -139,6 +139,11 @@ FIELD_MAPPING = {
     "iteration_path": "System.IterationPath",
     "tags": "System.Tags",
     "acceptance_criteria": "Microsoft.VSTS.Common.AcceptanceCriteria",
+    "target_date": "Microsoft.VSTS.Scheduling.TargetDate",
+    "labels": "Custom.Labels",
+    "pii_impact": "Custom.ImpactonPIIorFinancialDataorGroundOperations",
+    "load_testing": "Custom.LoadTesting",
+    "sprint_committed": "Custom.SprintTargetStatusCommitted",
 }
 
 
