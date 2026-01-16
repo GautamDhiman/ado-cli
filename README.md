@@ -4,11 +4,36 @@ A command-line tool for Azure DevOps work item management.
 
 ## Installation
 
+### Using pipx (Recommended)
+
 ```bash
+pipx install git+https://github.com/GautamDhiman/ado-cli.git
+```
+
+Or from local source:
+
+```bash
+pipx install /path/to/ado-cli
+```
+
+This installs `ado` globally without polluting your system Python.
+
+### From source (Development)
+
+```bash
+git clone https://github.com/GautamDhiman/ado-cli.git
 cd ado-cli
 python -m venv venv
 source venv/bin/activate
 pip install -e .
+```
+
+### Updating
+
+```bash
+pipx upgrade ado-cli
+# or reinstall:
+pipx reinstall ado-cli
 ```
 
 ## Configuration
