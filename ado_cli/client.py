@@ -1,7 +1,9 @@
 """Azure DevOps API client."""
 
 import base64
-from typing import Any
+import time
+from functools import wraps
+from typing import Any, Callable, TypeVar
 from urllib.parse import quote
 
 import httpx
@@ -9,6 +11,27 @@ import httpx
 from ado_cli.config import AdoConfig
 from ado_cli.exceptions import ApiError, AuthenticationError, WorkItemNotFoundError
 from ado_cli.models import Comment, Iteration, PatchOperation, WorkItem, get_field_name
+
+T = TypeVar("T")
+
+MAX_RETRIES = 3
+RETRY_DELAY = 1.0
+RETRYABLE_EXCEPTIONS = (httpx.ConnectError, httpx.ReadError, ConnectionResetError, OSError)
+
+
+def with_retry(func: Callable[..., T]) -> Callable[..., T]:
+    @wraps(func)
+    def wrapper(*args, **kwargs) -> T:
+        last_exc = None
+        for attempt in range(MAX_RETRIES):
+            try:
+                return func(*args, **kwargs)
+            except RETRYABLE_EXCEPTIONS as e:
+                last_exc = e
+                if attempt < MAX_RETRIES - 1:
+                    time.sleep(RETRY_DELAY * (attempt + 1))
+        raise last_exc
+    return wrapper
 
 
 class AzureDevOpsClient:
@@ -24,7 +47,7 @@ class AzureDevOpsClient:
             self._client = httpx.Client(
                 base_url=self.config.base_url,
                 headers={"Authorization": auth, "Content-Type": "application/json"},
-                timeout=30.0,
+                timeout=httpx.Timeout(30.0, connect=10.0),
             )
         return self._client
 
@@ -53,6 +76,7 @@ class AzureDevOpsClient:
     def __exit__(self, *args) -> None:
         self.close()
 
+    @with_retry
     def get_work_item(self, work_item_id: int, expand: str = "all") -> WorkItem:
         response = self.client.get(
             f"/wit/workitems/{work_item_id}",
@@ -62,6 +86,7 @@ class AzureDevOpsClient:
             raise WorkItemNotFoundError(work_item_id)
         return WorkItem.from_api_response(self._handle_response(response, f"work item {work_item_id}"))
 
+    @with_retry
     def get_work_items(self, work_item_ids: list[int], expand: str = "all") -> list[WorkItem]:
         if not work_item_ids:
             return []
@@ -73,6 +98,7 @@ class AzureDevOpsClient:
         data = self._handle_response(response, "work items batch")
         return [WorkItem.from_api_response(item) for item in data.get("value", [])]
 
+    @with_retry
     def create_work_item(self, work_item_type: str, title: str, **fields: Any) -> WorkItem:
         operations = [PatchOperation.for_field("System.Title", title)]
         for field_name, value in fields.items():
@@ -87,6 +113,7 @@ class AzureDevOpsClient:
         )
         return WorkItem.from_api_response(self._handle_response(response, f"create {work_item_type}"))
 
+    @with_retry
     def update_work_item(self, work_item_id: int, **fields: Any) -> WorkItem:
         operations = [
             PatchOperation.for_field(get_field_name(k), v)
@@ -105,6 +132,7 @@ class AzureDevOpsClient:
             raise WorkItemNotFoundError(work_item_id)
         return WorkItem.from_api_response(self._handle_response(response, f"update {work_item_id}"))
 
+    @with_retry
     def delete_work_item(self, work_item_id: int, destroy: bool = False) -> bool:
         response = self.client.delete(
             f"/wit/workitems/{work_item_id}",
@@ -115,6 +143,7 @@ class AzureDevOpsClient:
         self._handle_response(response, f"delete {work_item_id}")
         return True
 
+    @with_retry
     def query_work_items(self, wiql: str) -> list[WorkItem]:
         response = self.client.post(
             "/wit/wiql",
@@ -142,6 +171,7 @@ class AzureDevOpsClient:
         """
         return self.query_work_items(wiql)
 
+    @with_retry
     def get_comments(self, work_item_id: int) -> list[Comment]:
         response = self.client.get(
             f"/wit/workitems/{work_item_id}/comments",
@@ -152,6 +182,7 @@ class AzureDevOpsClient:
         data = self._handle_response(response, f"comments for {work_item_id}")
         return [Comment(**c) for c in data.get("comments", [])]
 
+    @with_retry
     def add_comment(self, work_item_id: int, text: str) -> Comment:
         response = self.client.post(
             f"/wit/workitems/{work_item_id}/comments",
@@ -162,6 +193,7 @@ class AzureDevOpsClient:
             raise WorkItemNotFoundError(work_item_id)
         return Comment(**self._handle_response(response, f"add comment to {work_item_id}"))
 
+    @with_retry
     def get_iterations(self, timeframe: str | None = None) -> list[Iteration]:
         org = quote(self.config.organization, safe="")
         project = quote(self.config.project, safe="")
@@ -191,6 +223,7 @@ class AzureDevOpsClient:
         except ApiError:
             return None
 
+    @with_retry
     def test_connection(self) -> bool:
         try:
             response = self.client.get(
